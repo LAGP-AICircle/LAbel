@@ -602,12 +602,13 @@ def create_analysis_text(
     
     return text
 
-# メール送信関連の定数を追加
-SMTP_SERVER = 'mail.alt-g.jp'
+# メール送信関連の定数を修正
+SMTP_SERVER = 'smtp.alt-g.jp'  # さくらのSMTPサーバー
 SMTP_PORT = 587
 SMTP_TIMEOUT = 30
 SMTP_TO_ADDRESS = "kanrieigyo@lberc-g.jp"
-SMTP_DOMAIN = "alt-g.jp"
+SMTP_USER = "label@alt-g.jp"
+SMTP_PASSWORD = "KbWHq8jR"
 
 def send_legal_check_email(
     company_name: str,
@@ -619,20 +620,12 @@ def send_legal_check_email(
 ) -> bool:
     """リーガルチェック依頼のメール送信（添付ファイル付き）"""
     try:
-        # SMTP設定
-        smtp_user = "label@alt-g.jp"  # 固定の認証用メールアドレス
-        smtp_password = "KbWHq8jR"    # 固定のパスワード
-        smtp_server = "mail.alt-g.jp"
-        smtp_port = 587
-        
         # メールメッセージの作成
         msg = MIMEMultipart()
         msg['Subject'] = f"【リーガルチェック依頼】【{duration}】{company_name}"
-        msg['From'] = "Alt-g Legal Check <label@alt-g.jp>"  # 表示名を追加
+        msg['From'] = SMTP_USER  # シンプルな送信者アドレス
         msg['To'] = SMTP_TO_ADDRESS
         msg['Date'] = formatdate(localtime=True)
-        # Return-Pathを設定
-        msg['Return-Path'] = smtp_user
         
         # メール本文
         body = f"""自動送信メール
@@ -650,19 +643,28 @@ def send_legal_check_email(
 """
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
+        # 分析結果がある場合は添付
+        if results:
+            analysis_text = create_analysis_text(
+                company_name,
+                source_company,
+                contract_type,
+                duration,
+                results
+            )
+            attachment = MIMEText(analysis_text, 'plain', 'utf-8')
+            attachment.add_header('Content-Disposition', 'attachment', filename='analysis_result.txt')
+            msg.attach(attachment)
+
         # SMTPサーバーへの接続とメール送信
-        with smtplib.SMTP(smtp_server, smtp_port, timeout=SMTP_TIMEOUT) as server:
-            server.set_debuglevel(1)  # デバッグレベルを1に設定
-            
-            # EHLO with domain
-            server.ehlo('alt-g.jp')
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
+            server.set_debuglevel(1)
             
             # STARTTLS
             server.starttls()
-            server.ehlo('alt-g.jp')  # STARTTLS後に再度EHLO
             
-            # ログイン - 固定の認証情報を使用
-            server.login(smtp_user, smtp_password)
+            # ログイン
+            server.login(SMTP_USER, SMTP_PASSWORD)
             
             # メール送信
             server.send_message(msg)

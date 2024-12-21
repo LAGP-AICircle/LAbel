@@ -632,7 +632,10 @@ def send_legal_check_email(
         # メールメッセージの作成
         msg = MIMEMultipart()
         msg['Subject'] = f"【リーガルチェック依頼】【{duration}】{company_name}"
-        msg['From'] = smtp_user  # 送信者名を削除し、メールアドレスのみに
+        
+        # From アドレスをドメイン付きの完全な形式で設定
+        from_addr = f"{smtp_user}@alt-g.jp" if '@' not in smtp_user else smtp_user
+        msg['From'] = from_addr
         msg['To'] = SMTP_TO_ADDRESS
         msg['Date'] = formatdate(localtime=True)
         
@@ -704,13 +707,15 @@ def send_legal_check_email(
                 smtp_server.ehlo()
             
             # ログイン情報のデバッグ出力（パスワードは隠す）
-            logger.info(f"Attempting login with user: {smtp_user}")
-            smtp_server.login(smtp_user, smtp_password)
+            logger.info(f"Attempting login with user: {from_addr}")
+            
+            # ログインにはドメイン付きの完全なメールアドレスを使用
+            smtp_server.login(from_addr, smtp_password)
             
             try:
-                # send_messageの代わりにsendmailを使用
+                # sendmailにも完全なメールアドレスを使用
                 smtp_server.sendmail(
-                    from_addr=smtp_user,
+                    from_addr=from_addr,
                     to_addrs=[SMTP_TO_ADDRESS],
                     msg=msg.as_string()
                 )

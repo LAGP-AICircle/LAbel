@@ -603,7 +603,7 @@ def create_analysis_text(
     return text
 
 # メール送信関連の定数を修正
-SMTP_SERVER = 'smtp.alt-g.jp'  # さくらのSMTPサーバー
+SMTP_SERVER = 'mail.alt-g.jp'  # さくらのSMTPサーバー
 SMTP_PORT = 587
 SMTP_TIMEOUT = 30
 SMTP_TO_ADDRESS = "kanrieigyo@lberc-g.jp"

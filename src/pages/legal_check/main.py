@@ -19,7 +19,7 @@ from pathlib import Path
 import olefile 
 from email.mime.application import MIMEApplication
 from datetime import datetime
-from config.settings import get_openai_api_key, get_setting
+from config.settings import get_openai_api_key
 
 # ログ設定
 logging.basicConfig(
@@ -419,6 +419,19 @@ def confirm_send_dialog(contract_company, source_company, duration, uploaded_fil
 
 def legal_check_page():
     """契約書分析ページのメイン関数"""
+    # 設定を取得
+    settings = get_setting()
+    
+    # グローバル変数として定義
+    global LABEL_EMAIL, LABEL_PASSWORD
+    LABEL_EMAIL = settings.get('LABEL_EMAIL')
+    LABEL_PASSWORD = settings.get('LABEL_PASSWORD')
+
+    if not LABEL_EMAIL or not LABEL_PASSWORD:
+        logger.error("メール設定が見つかりません")
+        st.error("メール設定が正しく構成されていません。システム管理者に連絡してください。")
+        return
+
     # セッションステートの初期化
     if 'show_dialog' not in st.session_state:
         st.session_state.show_dialog = False
@@ -578,29 +591,31 @@ def send_legal_check_email(
 ) -> bool:
     """リーガルチェック依頼のメール送信（添付ファイル付き）"""
     try:
-        smtp_user = LABEL_EMAIL
-        smtp_password = LABEL_PASSWORD
-        
-        if not smtp_user or not smtp_password:
+        if not LABEL_EMAIL or not LABEL_PASSWORD:
             logger.error("メール認証情報が設定されていません")
             st.error("メール送信の設定が正しくありません。システム管理者に連絡してください。")
             return False
             
-        recipient_email = "kanrieigyo@lberc-g.jp"
+        smtp_user = LABEL_EMAIL
+        smtp_password = LABEL_PASSWORD
+        
+        # デバッグ用のログ追加
+        logger.info(f"Attempting to send email using SMTP server: mail.alt-g.jp")
         
         with smtplib.SMTP('mail.alt-g.jp', 587) as smtp_server:
-            smtp_server.set_debuglevel(1)
+            smtp_server.set_debuglevel(1)  # デバッグ出力を有効化
             smtp_server.starttls()
             
             try:
+                logger.info("Attempting SMTP login...")
                 smtp_server.login(smtp_user, smtp_password)
-                logger.info("SMTPログイン成功")
+                logger.info("SMTP login successful")
                 
                 # メールの作成
                 msg = MIMEMultipart()
                 msg['Subject'] = f"【リーガルチェック依頼】【{duration}】{company_name}"
                 msg['From'] = smtp_user
-                msg['To'] = recipient_email
+                msg['To'] = "kanrieigyo@lberc-g.jp"
                 msg['Date'] = formatdate(localtime=True)
 
                 # メール本文

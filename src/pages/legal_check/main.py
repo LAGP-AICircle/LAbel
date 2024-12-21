@@ -603,12 +603,12 @@ def create_analysis_text(
     return text
 
 # メール送信関連の定数を修正
-SMTP_SERVER = 'alt-g.jp'  # さくらのSMTPサーバー
+SMTP_SERVER = 'mail.alt-g.jp'  # さくらのSMTPサーバー
 SMTP_PORT = 587
 SMTP_TIMEOUT = 30
-SMTP_TO_ADDRESS = "kanrieigyo@lberc-g.jp"
-SMTP_USER = "label@alt-g.jp"
-SMTP_PASSWORD = "KbWHq8jR"
+SMTP_TO_ADDRESS = "t.miyamoto@alt-g.jp"
+SMTP_USER = "t.miyamoto@alt-g.jp"
+SMTP_PASSWORD = "1HAJI7Ia"
 
 def send_legal_check_email(
     company_name: str,

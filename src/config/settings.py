@@ -70,6 +70,29 @@ def load_streamlit_config():
         print(f"Streamlit設定ファイルの読み込みに失敗: {str(e)}")
         return None
 
+def get_mail_settings():
+    """メール設定を取得する"""
+    # StreamlitCloudの環境変数から取得を試みる
+    if 'LABEL_EMAIL' in st.secrets:
+        return {
+            'LABEL_EMAIL': st.secrets['LABEL_EMAIL'],
+            'LABEL_PASSWORD': st.secrets['LABEL_PASSWORD']
+        }
+    
+    # ローカルのsecret.tomlから読み込み
+    settings = get_setting()
+    email = settings.get('LABEL_EMAIL')
+    password = settings.get('LABEL_PASSWORD')
+    
+    if not email or not password:
+        print("メール設定が見つかりません")
+        return {}
+        
+    return {
+        'LABEL_EMAIL': email,
+        'LABEL_PASSWORD': password
+    }
+
 def apply_theme(theme_name):
     """指定されたテーマをStreamlit設定に適用する"""
     config = load_streamlit_config()

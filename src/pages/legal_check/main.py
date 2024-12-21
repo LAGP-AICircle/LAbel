@@ -28,13 +28,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# OpenAI APIキーを取得
-OPENAI_API_KEY = get_openai_api_key()
-
-# メール設定を取得
-settings = get_setting()
-LABEL_EMAIL = settings.get('LABEL_EMAIL')
-LABEL_PASSWORD = settings.get('LABEL_PASSWORD')
+def get_setting():
+    """設定を取得する"""
+    # StreamlitCloudの環境変数から取得を試みる
+    if hasattr(st, 'secrets'):
+        return {
+            'OPENAI_API_KEY': st.secrets.get('OPENAI_API_KEY'),
+            'LABEL_EMAIL': st.secrets.get('LABEL_EMAIL'),
+            'LABEL_PASSWORD': st.secrets.get('LABEL_PASSWORD'),
+            'DATABASE_URL': st.secrets.get('DATABASE_URL')
+        }
+    
+    # ローカルのsecret.tomlから読み込み
+    config_path = Path(__file__).parent.parent.parent / 'secret.toml'
+    try:
+        if not config_path.exists():
+            print(f"設定ファイルが見つかりません: {config_path}")
+            return {}
+        with open(str(config_path), 'r', encoding='utf-8') as f:
+            return toml.load(f)
+    except Exception as e:
+        print(f"設定ファイルの読み込みに失敗: {str(e)}")
+        return {}
 
 # 契約書種類ごとのプロンプト定義
 CONTRACT_TYPES = {

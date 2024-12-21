@@ -1,0 +1,37 @@
+[theme]
+# デフォルトのライトモード設定
+primaryColor = "#333333"
+backgroundColor = "#F0F0F0"
+secondaryBackgroundColor = "#E0E0E0"
+textColor = "#000000"
+font = "sans serif"
+
+# ダークモード
+[theme.dark]
+primaryColor = "#1E1E1E"
+backgroundColor = "#0E0E0E"
+secondaryBackgroundColor = "#262626"
+textColor = "#FFFFFF"
+font = "sans serif"
+
+# エレガントモード
+[theme.elegant]
+primaryColor = "#DDA0DD"
+backgroundColor = "#FFF0F5"
+secondaryBackgroundColor = "#F8F8FF"
+textColor = "#483D8B"
+font = "Palatino"
+
+[browser]
+# ブラウザメニューを表示
+gatherUsageStats = false
+showSidebarNavigation = true
+
+[client]
+# テーマ選択を含むツールバーを表示
+toolbarMode = "auto"
+showErrorDetails = false
+
+[runner]
+# テーマ切り替えを有効化
+fastRerenderOnThemeChange = true

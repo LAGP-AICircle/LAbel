@@ -1,0 +1,50 @@
+cookie:
+  expiry_days: 30
+  key: random_signature_key_123
+  name: label_auth_cookie
+credentials:
+  usernames:
+    k.arai:
+      email: k.arai@lberc-g.jp
+      name: 新井快
+      password: $2b$12$5vMjWtbv2sdxlLcl4Z7E0eUqdqH0UhEPs9CwbgZ6cbDxc8enWSaU.
+    k.takahashi:
+      email: k.takahashi@lberc-g.jp
+      name: 髙橋和樹
+      password: $2b$12$.3u.obcxxule38C/73d3quN.XJFu99FNas9zrVGpK0bY7pmL0vzXS
+    m.akahori:
+      email: m.akahori@lberc-g.jp
+      name: 赤堀美夢
+      password: $2b$12$baxwPrCXy5Q3QXhmRBgXduVhrXRZiPLPEwNJDExCkhMxV7um68ERm
+    m.yamashita:
+      email: m.yamashita@lberc-g.jp
+      name: 山下誠
+      password: $2b$12$mLPcAM7l54h0VziT/TkPp.QjNj/mWJWidEB8wKZeTH95S8EjdzQGq
+    r.ookouchi:
+      email: r.ookouchi@alt-g.jp
+      name: 大河内利留
+      password: $2b$12$ot9g99SiAoo/cLKT8Q.7/OZj3K/STzTgmT1cOXTolxah0gMY4vcUu
+    s.akimoto:
+      email: s.akimoto@lberc-g.jp
+      name: 秋元鈴果
+      password: $2b$12$Ig5YA.bye2/3Iq5A48DrtutqqKQLrDcm/W1n296qPIR9BjTYI/GYy
+    s.mori:
+      email: s.mori@alt-g.jp
+      name: 森敏
+      password: $2b$12$0g8BvVuJrGHEwiuM.9aMDeBE66NDEoO4L1mn9s.c5iNN.eAtn3dvG
+    s.onose:
+      email: s.onose@lberc-g.jp
+      name: 小野瀬さくら
+      password: $2b$12$T28Mt9sQaMGGJpyPwRMAxufEmwQ.IDh97q2QIQJkkqdMLtLorx7VC
+    t.fujii:
+      email: t.fujii@lberc-g.jp
+      name: 藤井竜夫
+      password: $2b$12$PtSKohUAdaMLg8PXzrQzdeFQoQrb.uZ3z/IRXO4TciJEi8Kh3Bi/K
+    t.miyamoto:
+      email: t.miyamoto@alt-g.jp
+      name: 宮本尚寛
+      password: $2b$12$cV8gTp4432DLE0xrFmwwmeQ3TSHK3mfCqJaE/jmYAltv4rG.RQfv.
+    y.kikuchi:
+      email: yu.kikuchi@lberc-g.jp
+      name: 菊地優
+      password: $2b$12$hMEBH4v6e0VhPjnA6Gk/Hu5URzhmLIx5EoK7D7NR/jgYqdPr.G7kW

@@ -314,35 +314,56 @@ def extract_document_text(file_path: str, file_type: str) -> str:
             # olefileでの抽出が失敗した場合、追加の方法を試行
             logger.info("Attempting alternative extraction methods")
             
-            # 1. Docx2txtLoaderを試行
+            # docx2txtを試行
             try:
                 loader = Docx2txtLoader(file_path)
                 documents = loader.load()
                 extracted_text = "\n".join(doc.page_content for doc in documents)
                 if extracted_text.strip():
-                    logger.info("Successfully extracted text using Docx2txtLoader")
+                    logger.info("Successfully extracted text using docx2txt")
                     return extracted_text
             except Exception as e:
-                logger.debug(f"Docx2txtLoader extraction failed: {str(e)}")
+                logger.debug(f"docx2txt extraction failed: {str(e)}")
 
-            # 2. antiwordコマンドを試行（インストールされている場合）
+            # python-docxを試行
             try:
-                result = subprocess.run(['antiword', file_path], 
-                                     capture_output=True, 
-                                     text=True)
-                if result.returncode == 0 and result.stdout.strip():
-                    logger.info("Successfully extracted text using antiword")
-                    return result.stdout
+                from docx import Document
+                doc = Document(file_path)
+                extracted_text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                if extracted_text.strip():
+                    logger.info("Successfully extracted text using python-docx")
+                    return extracted_text
             except Exception as e:
-                logger.debug(f"Antiword extraction failed: {str(e)}")
+                logger.debug(f"python-docx extraction failed: {str(e)}")
 
             logger.error("All text extraction methods failed")
             return None
             
         elif file_type == 'docx':
-            loader = Docx2txtLoader(file_path)
-            documents = loader.load()
-            return "\n".join(doc.page_content for doc in documents)
+            try:
+                # まずpython-docxを試す
+                from docx import Document
+                doc = Document(file_path)
+                extracted_text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                if extracted_text.strip():
+                    logger.info("Successfully extracted text using python-docx")
+                    return extracted_text
+            except Exception as e:
+                logger.debug(f"python-docx extraction failed: {str(e)}")
+                
+            # python-docxが失敗した場合はdocx2txtを試す
+            try:
+                loader = Docx2txtLoader(file_path)
+                documents = loader.load()
+                extracted_text = "\n".join(doc.page_content for doc in documents)
+                if extracted_text.strip():
+                    logger.info("Successfully extracted text using docx2txt")
+                    return extracted_text
+            except Exception as e:
+                logger.debug(f"docx2txt extraction failed: {str(e)}")
+                
+            logger.error("All text extraction methods failed")
+            return None
             
         else:
             logger.error(f"Unsupported file type: {file_type}")
@@ -603,7 +624,7 @@ def send_legal_check_email(
         logger.info(f"Attempting to send email using SMTP server: mail.alt-g.jp")
         
         with smtplib.SMTP('mail.alt-g.jp', 587) as smtp_server:
-            smtp_server.set_debuglevel(1)  # デバッグ出力を有効化
+            smtp_server.set_debuglevel(1)
             smtp_server.starttls()
             
             try:
@@ -677,19 +698,24 @@ def send_legal_check_email(
                     logger.info(f"Added attachment: {uploaded_file.name}")
 
                 # メール送信
-                smtp_server.send_message(msg)
-                logger.info("メール送信成功")
-                return True
+                try:
+                    smtp_server.send_message(msg)
+                    logger.info("メール送信成功")
+                    return True
+                except smtplib.SMTPSenderRefused as e:
+                    logger.error(f"送信者アドレスが拒否されました: {str(e)}")
+                    st.error("送信者アドレスが拒否されました。システム管理者に連絡してください。")
+                    return False
+                except smtplib.SMTPRecipientsRefused as e:
+                    logger.error(f"受信者アドレスが拒否されました: {str(e)}")
+                    st.error("受信者アドレスが拒否されました。宛先アドレスを確認してください。")
+                    return False
                 
             except smtplib.SMTPAuthenticationError as e:
                 logger.error(f"SMTP認証エラー: {str(e)}")
                 st.error("メールサーバーへの認証に失敗しました。認証情報を確認してください。")
                 return False
-            except Exception as e:
-                logger.error(f"SMTP処理エラー: {str(e)}")
-                st.error(f"メール送信中にエラーが発生しました: {str(e)}")
-                return False
-
+                
     except Exception as e:
         logger.error(f"メール送信処理でエラーが発生: {str(e)}", exc_info=True)
         st.error("メール送信処理中に予期せぬエラーが発生しました。")

@@ -607,7 +607,7 @@ SMTP_SERVER = 'mail.alt-g.jp'
 SMTP_PORT = 587
 SMTP_TIMEOUT = 30
 SMTP_TO_ADDRESS = "kanrieigyo@lberc-g.jp"
-SMTP_DOMAIN = "alt-g.jp"  # ドメインを定数化
+SMTP_DOMAIN = "alt-g.jp"
 
 def send_legal_check_email(
     company_name: str,
@@ -619,40 +619,20 @@ def send_legal_check_email(
 ) -> bool:
     """リーガルチェック依頼のメール送信（添付ファイル付き）"""
     try:
-        # 認証情報のチェックと詳細ログ
-        if not LABEL_EMAIL or not LABEL_PASSWORD:
-            logger.error("メール認証情報が設定されていません")
-            logger.debug(f"LABEL_EMAIL: {'設定あり' if LABEL_EMAIL else '未設定'}")
-            logger.debug(f"LABEL_PASSWORD: {'設定あり' if LABEL_PASSWORD else '未設定'}")
-            st.error("メール送信の設定が正しくありません。システム管理者に連絡してください。")
-            return False
-            
-        # メールアドレスの正規化
-        smtp_user = LABEL_EMAIL.lower().strip()
-        if '@' in smtp_user:
-            local_part = smtp_user.split('@')[0]
-            from_addr = f"{local_part}@{SMTP_DOMAIN}"
-        else:
-            from_addr = f"{smtp_user}@{SMTP_DOMAIN}"
-            
-        smtp_password = LABEL_PASSWORD
-        
-        # 設定情報のログ出力
-        logger.info("=== メール送信設定情報 ===")
-        logger.info(f"SMTP Server: {SMTP_SERVER}")
-        logger.info(f"SMTP Port: {SMTP_PORT}")
-        logger.info(f"Original Email: {smtp_user}")
-        logger.info(f"Normalized From Address: {from_addr}")
-        logger.info(f"To Address: {SMTP_TO_ADDRESS}")
+        # SMTP設定
+        smtp_user = "label@alt-g.jp"  # 固定の認証用メールアドレス
+        smtp_password = "KbWHq8jR"    # 固定のパスワード
+        smtp_server = "mail.alt-g.jp"
+        smtp_port = 587
         
         # メールメッセージの作成
         msg = MIMEMultipart()
         msg['Subject'] = f"【リーガルチェック依頼】【{duration}】{company_name}"
-        msg['From'] = from_addr
+        msg['From'] = smtp_user  # 認証用メールアドレスをFromにも使用
         msg['To'] = SMTP_TO_ADDRESS
         msg['Date'] = formatdate(localtime=True)
         
-        # メール本文の追加
+        # メール本文
         body = f"""自動送信メール
 
 リーガルチェック依頼がきております。
@@ -668,71 +648,30 @@ def send_legal_check_email(
 """
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
-        # メールヘッダー情報のログ
-        logger.info("=== メールヘッダー情報 ===")
-        for header, value in msg.items():
-            logger.info(f"{header}: {value}")
-
         # SMTPサーバーへの接続とメール送信
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT) as smtp_server:
-            smtp_server.set_debuglevel(2)
+        with smtplib.SMTP(smtp_server, smtp_port, timeout=SMTP_TIMEOUT) as server:
+            server.set_debuglevel(1)  # デバッグレベルを1に設定（詳細なログは不要）
             
-            # EHLO/HELO
-            logger.info("=== SMTP接続開始 ===")
-            try:
-                ehlo_response = smtp_server.ehlo(SMTP_DOMAIN)
-                logger.info(f"EHLO Response: {ehlo_response}")
-            except Exception as e:
-                logger.error(f"EHLO失敗: {str(e)}")
-                raise
+            # EHLO
+            server.ehlo()
             
             # STARTTLS
-            if smtp_server.has_extn('STARTTLS'):
-                logger.info("STARTTLSを開始")
-                smtp_server.starttls()
-                ehlo_response = smtp_server.ehlo(SMTP_DOMAIN)
-                logger.info(f"STARTTLS後のEHLO Response: {ehlo_response}")
+            if server.has_extn('STARTTLS'):
+                server.starttls()
+                server.ehlo()  # STARTTLS後に再度EHLO
             
-            # ログイン
-            try:
-                logger.info(f"SMTPログイン試行 - ユーザー: {from_addr}")
-                smtp_server.login(from_addr, smtp_password)
-                logger.info("SMTPログイン成功")
-            except smtplib.SMTPAuthenticationError as auth_error:
-                logger.error(f"SMTP認証エラー: {str(auth_error)}")
-                logger.error(f"エラーコード: {auth_error.smtp_code}")
-                logger.error(f"エラーメッセージ: {auth_error.smtp_error.decode('utf-8') if hasattr(auth_error, 'smtp_error') else ''}")
-                raise
+            # ログイン - 固定の認証情報を使用
+            server.login(smtp_user, smtp_password)
             
             # メール送信
-            try:
-                logger.info("=== メール送信試行 ===")
-                smtp_server.sendmail(
-                    from_addr=from_addr,
-                    to_addrs=[SMTP_TO_ADDRESS],
-                    msg=msg.as_string()
-                )
-                logger.info("メール送信成功")
-                return True
-                
-            except smtplib.SMTPSenderRefused as e:
-                logger.error("=== 送信者アドレス拒否エラー ===")
-                logger.error(f"エラーコード: {e.smtp_code}")
-                logger.error(f"エラーメッセージ: {e.smtp_error.decode('utf-8') if hasattr(e, 'smtp_error') else str(e)}")
-                logger.error(f"送信者アドレス: {e.sender}")
-                st.error(f"送信者アドレスが拒否されました: {e.smtp_error.decode('utf-8') if hasattr(e, 'smtp_error') else str(e)}")
-                return False
-                
+            server.send_message(msg)
+            
+            logger.info("メール送信成功")
+            return True
+            
     except Exception as e:
-        logger.error("=== メール送信処理でエラー発生 ===")
-        logger.error(f"エラータイプ: {type(e).__name__}")
-        logger.error(f"エラーメッセージ: {str(e)}")
-        logger.error("詳細なスタックトレース:", exc_info=True)
-        if hasattr(e, 'smtp_code'):
-            logger.error(f"SMTPエラーコード: {e.smtp_code}")
-        if hasattr(e, 'smtp_error'):
-            logger.error(f"SMTPエラーメッセージ: {e.smtp_error.decode('utf-8') if isinstance(e.smtp_error, bytes) else e.smtp_error}")
-        st.error("メール送信処理中に予期せぬエラーが発生しました。")
+        logger.error(f"メール送信エラー: {str(e)}")
+        st.error(f"メール送信に失敗しました: {str(e)}")
         return False
 
 if __name__ == "__main__":

@@ -618,102 +618,78 @@ def send_legal_check_email(
 ) -> bool:
     """リーガルチェック依頼のメール送信（添付ファイル付き）"""
     try:
+        # 認証情報のチェックと詳細ログ
         if not LABEL_EMAIL or not LABEL_PASSWORD:
             logger.error("メール認証情報が設定されていません")
+            logger.debug(f"LABEL_EMAIL: {'設定あり' if LABEL_EMAIL else '未設定'}")
+            logger.debug(f"LABEL_PASSWORD: {'設定あり' if LABEL_PASSWORD else '未設定'}")
             st.error("メール送信の設定が正しくありません。システム管理者に連絡してください。")
             return False
             
         smtp_user = LABEL_EMAIL
         smtp_password = LABEL_PASSWORD
         
-        logger.info(f"Attempting to send email using SMTP server: {SMTP_SERVER}")
-        logger.info(f"From address: {smtp_user}")
+        # From アドレスの設定とログ
+        from_addr = f"{smtp_user}@alt-g.jp" if '@' not in smtp_user else smtp_user
+        logger.info(f"設定情報:")
+        logger.info(f"- SMTP Server: {SMTP_SERVER}")
+        logger.info(f"- SMTP Port: {SMTP_PORT}")
+        logger.info(f"- From Address: {from_addr}")
+        logger.info(f"- To Address: {SMTP_TO_ADDRESS}")
+        logger.info(f"- Original SMTP User: {smtp_user}")
         
         # メールメッセージの作成
         msg = MIMEMultipart()
         msg['Subject'] = f"【リーガルチェック依頼】【{duration}】{company_name}"
-        
-        # From アドレスをドメイン付きの完全な形式で設定
-        from_addr = f"{smtp_user}@alt-g.jp" if '@' not in smtp_user else smtp_user
         msg['From'] = from_addr
         msg['To'] = SMTP_TO_ADDRESS
         msg['Date'] = formatdate(localtime=True)
         
-        # メール本文
-        body = f"""自動送信メール
-
-リーガルチェック依頼がきております。
-承認担当者は期限までにご確認お願いいたします。
-
-============= 
-上位名　：{company_name}
-契約元　：{source_company}
-契約事由：{contract_type}
-期　限　：{duration}
-担当者　：
-=============
-"""
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
-
-        # 分析結果をテキストファイルとして添付
-        analysis_text = create_analysis_text(
-            company_name, source_company, contract_type, duration, results
-        )
-        analysis_attachment = MIMEApplication(
-            analysis_text.encode('utf-8'),
-            _subtype='txt'
-        )
-        analysis_attachment.add_header(
-            'Content-Disposition',
-            'attachment',
-            filename='分析結果.txt'
-        )
-        msg.attach(analysis_attachment)
-
-        # 元の契約書ファイルを添付
-        for uploaded_file in uploaded_files:
-            # ファイル名から拡張子を取得
-            file_ext = Path(uploaded_file.name).suffix.lower()
-            
-            # Content-Typeの設定
-            content_types = {
-                '.pdf': 'application/pdf',
-                '.doc': 'application/msword',
-                '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            }
-            
-            content_type = content_types.get(file_ext, 'application/octet-stream')
-            
-            # ファイルを添付
-            file_attachment = MIMEApplication(
-                uploaded_file.getvalue(),
-                _subtype=content_type.split('/')[-1]
-            )
-            file_attachment.add_header(
-                'Content-Disposition',
-                'attachment',
-                filename=uploaded_file.name
-            )
-            msg.attach(file_attachment)
-            logger.info(f"Added attachment: {uploaded_file.name}")
+        # メッダー情報のログ
+        logger.info("メールヘッダー情報:")
+        for header, value in msg.items():
+            logger.info(f"- {header}: {value}")
 
         # SMTPサーバーへの接続とメール送信
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT) as smtp_server:
-            smtp_server.set_debuglevel(1)
-            smtp_server.ehlo()
+            smtp_server.set_debuglevel(2)  # デバッグレベルを2に上げる
             
+            # EHLO コマンドの実行とレスポンスの確認
+            logger.info("EHLO コマンドの実行")
+            ehlo_response = smtp_server.ehlo()
+            logger.info(f"EHLO Response: {ehlo_response}")
+            
+            # 利用可能な拡張機能の確認
+            logger.info("利用可能なSMTP拡張機能:")
+            for ext in smtp_server.esmtp_features:
+                logger.info(f"- {ext}: {smtp_server.esmtp_features[ext]}")
+            
+            # STARTTLS の開始
             if smtp_server.has_extn('STARTTLS'):
+                logger.info("STARTTLSを開始")
                 smtp_server.starttls()
-                smtp_server.ehlo()
+                
+                # STARTTLS後の再度EHLO
+                logger.info("STARTTLS後の再EHLO実行")
+                ehlo_response = smtp_server.ehlo()
+                logger.info(f"STARTTLS後のEHLO Response: {ehlo_response}")
+            else:
+                logger.warning("STARTTLSがサポートされていません")
             
-            # ログイン情報のデバッグ出力（パスワードは隠す）
-            logger.info(f"Attempting login with user: {from_addr}")
-            
-            # ログインにはドメイン付きの完全なメールアドレスを使用
-            smtp_server.login(from_addr, smtp_password)
-            
+            # ログイン試行
             try:
-                # sendmailにも完全なメールアドレスを使用
+                logger.info(f"SMTPログイン試行 - ユーザー: {from_addr}")
+                smtp_server.login(from_addr, smtp_password)
+                logger.info("SMTPログイン成功")
+            except smtplib.SMTPAuthenticationError as auth_error:
+                logger.error(f"SMTP認証エラー: {str(auth_error)}")
+                logger.error(f"エラーコード: {auth_error.smtp_code}")
+                logger.error(f"エラーメッセージ: {auth_error.smtp_error}")
+                raise
+            
+            # メール送信試行
+            try:
+                logger.info("メール送信を試行")
                 smtp_server.sendmail(
                     from_addr=from_addr,
                     to_addrs=[SMTP_TO_ADDRESS],
@@ -723,28 +699,19 @@ def send_legal_check_email(
                 return True
                 
             except smtplib.SMTPSenderRefused as e:
-                logger.error(f"送信者アドレスが拒否されました: {str(e)}")
-                error_msg = e.smtp_error.decode('utf-8') if hasattr(e, 'smtp_error') else str(e)
-                st.error(f"送信者アドレスが拒否されました: {error_msg}")
+                logger.error("送信者アドレス拒否エラーの詳細:")
+                logger.error(f"- エラーコード: {e.smtp_code}")
+                logger.error(f"- エラーメッセージ: {e.smtp_error.decode('utf-8') if hasattr(e, 'smtp_error') else str(e)}")
+                logger.error(f"- 送信者アドレス: {e.sender}")
+                st.error(f"送信者アドレスが拒否されました: {e.smtp_error.decode('utf-8') if hasattr(e, 'smtp_error') else str(e)}")
                 return False
                 
-            except smtplib.SMTPRecipientsRefused as e:
-                logger.error(f"受信者アドレスが拒否されました: {str(e)}")
-                st.error("受信者アドレスが拒否されました。宛先アドレスを確認してください。")
-                return False
-                
-            except Exception as e:
-                logger.error(f"メール送信中にエラーが発生: {str(e)}")
-                st.error(f"メール送信中にエラーが発生しました: {str(e)}")
-                return False
-                
-    except smtplib.SMTPAuthenticationError as e:
-        logger.error(f"SMTP認証エラー: {str(e)}")
-        st.error("メールサーバーへの認証に失敗しました。認証情報を確認してください。")
-        return False
-        
     except Exception as e:
         logger.error(f"メール送信処理でエラーが発生: {str(e)}", exc_info=True)
+        if hasattr(e, 'smtp_code'):
+            logger.error(f"SMTPエラーコード: {e.smtp_code}")
+        if hasattr(e, 'smtp_error'):
+            logger.error(f"SMTPエラーメッセージ: {e.smtp_error}")
         st.error("メール送信処理中に予期せぬエラーが発生しました。")
         return False
 

@@ -628,9 +628,11 @@ def send_legal_check_email(
         # メールメッセージの作成
         msg = MIMEMultipart()
         msg['Subject'] = f"【リーガルチェック依頼】【{duration}】{company_name}"
-        msg['From'] = smtp_user  # 認証用メールアドレスをFromにも使用
+        msg['From'] = "Alt-g Legal Check <label@alt-g.jp>"  # 表示名を追加
         msg['To'] = SMTP_TO_ADDRESS
         msg['Date'] = formatdate(localtime=True)
+        # Return-Pathを設定
+        msg['Return-Path'] = smtp_user
         
         # メール本文
         body = f"""自動送信メール
@@ -650,15 +652,14 @@ def send_legal_check_email(
 
         # SMTPサーバーへの接続とメール送信
         with smtplib.SMTP(smtp_server, smtp_port, timeout=SMTP_TIMEOUT) as server:
-            server.set_debuglevel(1)  # デバッグレベルを1に設定（詳細なログは不要）
+            server.set_debuglevel(1)  # デバッグレベルを1に設定
             
-            # EHLO
-            server.ehlo()
+            # EHLO with domain
+            server.ehlo('alt-g.jp')
             
             # STARTTLS
-            if server.has_extn('STARTTLS'):
-                server.starttls()
-                server.ehlo()  # STARTTLS後に再度EHLO
+            server.starttls()
+            server.ehlo('alt-g.jp')  # STARTTLS後に再度EHLO
             
             # ログイン - 固定の認証情報を使用
             server.login(smtp_user, smtp_password)

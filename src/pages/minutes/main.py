@@ -10,25 +10,37 @@ from langchain_core.messages import HumanMessage
 from config.settings import get_openai_api_key, get_setting, SUPPORTED_AUDIO_FORMATS
 from pydub import AudioSegment
 
+def get_openai_api_key():
+    """OpenAI APIキーを取得"""
+    # まずOSの環境変数から取得を試みる
+    openai_key = os.getenv('OPENAI_API_KEY')
+    
+    # StreamlitCloudの環境変数から取得を試みる
+    if not openai_key and hasattr(st, 'secrets'):
+        openai_key = st.secrets.get('OPENAI_API_KEY')
+    
+    return openai_key
+
 # OpenAI APIキーを取得
 OPENAI_API_KEY = get_openai_api_key()
 
 # FFmpegの設定を環境に応じて変更
-if os.environ.get('CLOUD_RUN_ENV'):
+if os.environ.get('CLOUD_RUN_ENV') == 'true':
     # Cloud Run環境ではシステムのFFmpegを使用
     FFMPEG_PATH = "/usr/bin"
 else:
     # ローカル環境（Windows）用の設定
     FFMPEG_PATH = r"C:\Users\r0u8b\OneDrive\一時保管場所（削除してよいもの）\ffmpeg-master-latest-win64-gpl\ffmpeg-master-latest-win64-gpl\bin"
 
-# 環境変数にFFmpegのパスを追加
-os.environ["PATH"] = os.environ["PATH"] + os.pathsep + FFMPEG_PATH
-
-# OSに応じてFFmpegの設定を変更（Cloud Run環境では不要なため、条件分岐を追加）
-if not os.environ.get('CLOUD_RUN_ENV') and os.name == 'nt':
-    AudioSegment.converter = os.path.join(FFMPEG_PATH, "ffmpeg.exe")
-    AudioSegment.ffmpeg = os.path.join(FFMPEG_PATH, "ffmpeg.exe")
-    AudioSegment.ffprobe = os.path.join(FFMPEG_PATH, "ffprobe.exe")
+# 環境変数にFFmpegのパスを追加（Cloud Run環境では不要）
+if os.environ.get('CLOUD_RUN_ENV') != 'true':
+    os.environ["PATH"] = os.environ["PATH"] + os.pathsep + FFMPEG_PATH
+    
+    # WindowsのみFFmpegの設定を変更
+    if os.name == 'nt':
+        AudioSegment.converter = os.path.join(FFMPEG_PATH, "ffmpeg.exe")
+        AudioSegment.ffmpeg = os.path.join(FFMPEG_PATH, "ffmpeg.exe")
+        AudioSegment.ffprobe = os.path.join(FFMPEG_PATH, "ffprobe.exe")
 
 def initialize_minutes_state():
     """議事録機能のセッション状態を初期化"""
@@ -75,7 +87,7 @@ def generate_minutes(transcription: str) -> bool:
         # 会議内容
         - 会話のテーマを大項目事に分類して記載
         - 中項目、小項目として発言内容を記載していく
-        - できる限りやり取りを網羅しつつ、一つ一つは簡潔に要約
+        - できる限りや���取りを網羅しつつ、一つ一つは簡潔に要約
 
         # 次回開催日時
         - 言及があれば記載
@@ -184,7 +196,7 @@ def minutes_page():
 def process_audio_file(uploaded_file) -> bool:
     """音声ファイルの処理"""
     if not OPENAI_API_KEY:
-        st.error("OpenAI APIキーが設定されていません。")
+        st.error("OpenAI APIキーが設定されていません。環境変数OPENAI_API_KEYを設定してください。")
         return False
 
     try:

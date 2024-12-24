@@ -1,0 +1,14 @@
+runtime: python39
+instance_class: F1
+
+env_variables:
+  CLOUD_RUN_ENV: "true"
+  LABEL_EMAIL: "label@alt-g.jp"
+  SMTP_SERVER: "mail.alt-g.jp"
+  SMTP_PORT: "587"
+
+vpc_access_connector:
+  name: "projects/your-project/locations/your-region/connectors/your-connector"
+
+includes:
+  - env_secrets.yaml  # 機密情報は別ファイルで管理 

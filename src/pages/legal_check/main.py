@@ -28,28 +28,38 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# メール送信関連の定数を環境変数から取得
+SMTP_SERVER = os.getenv('SMTP_SERVER', 'mail.alt-g.jp')
+SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+SMTP_TIMEOUT = int(os.getenv('SMTP_TIMEOUT', '30'))
+SMTP_TO_ADDRESS = os.getenv('SMTP_TO_ADDRESS', 'kanrieigyo@lberc-g.jp')
+SMTP_DOMAIN = os.getenv('SMTP_DOMAIN', 'alt-g.jp')
+
 def get_setting():
     """設定を取得する"""
-    # StreamlitCloudの環境変数から取得を試みる
-    if hasattr(st, 'secrets'):
-        return {
-            'OPENAI_API_KEY': st.secrets.get('OPENAI_API_KEY'),
-            'LABEL_EMAIL': st.secrets.get('LABEL_EMAIL'),
-            'LABEL_PASSWORD': st.secrets.get('LABEL_PASSWORD'),
-            'DATABASE_URL': st.secrets.get('DATABASE_URL')
-        }
+    settings = {}
     
-    # ローカルのsecret.tomlから読み込み
-    config_path = Path(__file__).parent.parent.parent / 'secret.toml'
-    try:
-        if not config_path.exists():
-            print(f"設定ファイルが見つかりません: {config_path}")
-            return {}
-        with open(str(config_path), 'r', encoding='utf-8') as f:
-            return toml.load(f)
-    except Exception as e:
-        print(f"設定ファイルの読み込みに失敗: {str(e)}")
-        return {}
+    # Cloud Run環境かどうかを確認
+    is_cloud_run = os.getenv('CLOUD_RUN_ENV') == 'true'
+    
+    # 環境変数から設定を取得
+    settings['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
+    settings['LABEL_EMAIL'] = os.getenv('LABEL_EMAIL')
+    settings['LABEL_PASSWORD'] = os.getenv('LABEL_PASSWORD')
+    
+    # Cloud Run環境でない場合はStreamlit Secretsも確認
+    if not is_cloud_run and hasattr(st, 'secrets'):
+        try:
+            if not settings['OPENAI_API_KEY']:
+                settings['OPENAI_API_KEY'] = st.secrets.get('OPENAI_API_KEY')
+            if not settings['LABEL_EMAIL']:
+                settings['LABEL_EMAIL'] = st.secrets.get('LABEL_EMAIL')
+            if not settings['LABEL_PASSWORD']:
+                settings['LABEL_PASSWORD'] = st.secrets.get('LABEL_PASSWORD')
+        except Exception as e:
+            logger.warning(f"Streamlit Secretsからの読み込み中にエラー: {str(e)}")
+    
+    return settings
 
 # 契約書種類ごとのプロンプト定義
 CONTRACT_TYPES = {
@@ -69,7 +79,7 @@ CONTRACT_TYPES = {
     #Example
     ##input
     第１２条（解約）
-    甲は、本契約期間中であっても、１か月前の予告をすることにより、本契約を解約することができる
+    甲は、本契約期間中であって、１か月前の予告をすることにより、本契約を解約することができる
 
     ##output
     変更例：
@@ -117,7 +127,7 @@ CONTRACT_TYPES = {
     するものではない。 
 
     ##input
-    ３．乙は、本契約または個別契約の契約期間中及び契約終了後、甲の従業員、外注先な
+    ３．乙は、本契約または個別契約の契約期間中及び契約終了後、甲の従業員、���注先な
     ど（以下、併せて、「従業員等」という。）を勧誘して委託業務と同種又は類似する
     業務を依頼する等の引抜行為をしてはならない。これに違反した場合、乙は、甲に
     対し、直ちに、既に甲から受領した全ての委託料の返還に加えて、違約罰として従
@@ -131,7 +141,7 @@ CONTRACT_TYPES = {
     業員等１人に金１００万円、その他別途相手方に生じた損害を賠償するものとする。"""
     },
     "機密保持契約書": {
-        "prompt": """あなたは契約書分析の専門家です。機密保持契約書を分析し、以下の項目について詳細に説明してください。
+        "prompt": """あなたは契約書分析の専門家です。機密保持契約書を分析し、以下の項目について詳細に明してください。
         分析項目：
     ## 損害賠償について、甲乙が平等な契約になっているか
     ## 合意管轄裁判所が"東京地方裁判所"になっているか。
@@ -382,7 +392,7 @@ def analyze_document(text: str, contract_type: str, company_name: str) -> str:
     prompt = CONTRACT_TYPES[contract_type]["prompt"]
     
     template = f"""
-    以下の契約書を分析してください：
+    以下の契約書を分析してくだ��い：
 
     契約当事者: {company_name}
     
@@ -420,7 +430,7 @@ def confirm_send_dialog(contract_company, source_company, duration, uploaded_fil
     """メール送信確認ダイアログ"""
     st.write("以下の内容で承認依頼を送信します。内容を確認してください。")
     st.write(f"上位会社名: {contract_company}")
-    st.write(f"���約元会社: {source_company}")
+    st.write(f"契約元会社: {source_company}")
     st.write(f"期限: {duration}")
     st.write(f"添付ファイル数: {len(uploaded_files)}件")
     
@@ -442,6 +452,42 @@ def legal_check_page():
     """契約書分析ページのメイン関数"""
     # 設定を取得
     settings = get_setting()
+    
+    # 必要な設定が揃っているか確認
+    missing_settings = []
+    if not settings.get('OPENAI_API_KEY'):
+        missing_settings.append("OPENAI_API_KEY")
+    if not settings.get('LABEL_EMAIL'):
+        missing_settings.append("LABEL_EMAIL")
+    if not settings.get('LABEL_PASSWORD'):
+        missing_settings.append("LABEL_PASSWORD")
+    
+    if missing_settings:
+        st.error(f"以下の設定が見つかりません：\n" + 
+                "\n".join([f"- {setting}" for setting in missing_settings]) + 
+                "\n\n環境変数または.streamlit/secrets.tomlで設定してください。")
+        st.info("""
+        設定方法：
+        1. 環境変数として設定：
+           ```
+           set OPENAI_API_KEY=your-api-key
+           set LABEL_EMAIL=your-email
+           set LABEL_PASSWORD=your-password
+           ```
+        
+        2. または.streamlit/secrets.tomlに記述：
+           ```
+           OPENAI_API_KEY = "your-api-key"
+           LABEL_EMAIL = "your-email"
+           LABEL_PASSWORD = "your-password"
+           ```
+        """)
+        return
+    
+    # OpenAI APIキーの確認
+    if not settings.get('OPENAI_API_KEY'):
+        st.warning("OpenAI APIキーが設定されていません。環境変数OPENAI_API_KEYを設定してください。")
+        return
     
     # グローバル変数として定義
     global LABEL_EMAIL, LABEL_PASSWORD
@@ -531,7 +577,7 @@ def legal_check_page():
                 st.error("分析可能な契約書（基本契約書または機密保持契約書）が見つかりませんでした。")
                 return
             
-            # 分析可能なファイルの処理
+            # 分析���能なファイルの処理
             for file, file_contract_type in processable_files:
                 try:
                     extracted_text = process_uploaded_file(file)
@@ -601,13 +647,6 @@ def create_analysis_text(
             text += "=" * 50 + "\n"
     
     return text
-
-# メール送信関連の定数を追加
-SMTP_SERVER = 'mail.alt-g.jp'
-SMTP_PORT = 587
-SMTP_TIMEOUT = 30
-SMTP_TO_ADDRESS = "kanrieigyo@lberc-g.jp"
-SMTP_DOMAIN = "alt-g.jp"
 
 def send_legal_check_email(
     company_name: str,
@@ -688,7 +727,7 @@ def send_legal_check_email(
             )
             msg.attach(analysis_attachment)
 
-        # 元の契約書ファイルを添付
+        # 元の契約書ファ��ルを添付
         for uploaded_file in uploaded_files:
             file_attachment = MIMEApplication(
                 uploaded_file.getvalue(),

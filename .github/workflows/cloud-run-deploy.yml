@@ -1,0 +1,49 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: label-445414
+  SERVICE_NAME: label
+  REGION: asia-northeast1
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Google Auth
+      id: auth
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: '${{ secrets.GCP_SA_KEY }}'
+        token_format: 'access_token'
+        service_account: 'cloud-run-deployer@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
+
+    - name: Setup Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ env.PROJECT_ID }}
+        install_components: 'beta,gke-gcloud-auth-plugin'
+
+    - name: Authorize Docker push
+      run: gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
+
+    - name: Build and Deploy
+      env:
+        CLOUDSDK_CORE_DISABLE_PROMPTS: 1
+      run: gcloud builds submit --config cloudbuild.yaml
+
+    - name: Show Output URL
+      run: gcloud run services describe ${{ env.SERVICE_NAME }} --platform managed --region ${{ env.REGION }} --format 'value(status.url)'
